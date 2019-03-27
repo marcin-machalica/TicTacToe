@@ -5,6 +5,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.BufferedReader;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 
@@ -19,9 +21,9 @@ public class GameTableTest {
 
     @Before
     public void setup() {
-        player1 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
-        player2 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
-        player3 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
+        player1 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
+        player2 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
+        player3 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
     }
 
     @Test

@@ -4,8 +4,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.BufferedReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -34,10 +33,10 @@ public class ServerTest {
     public void setup() throws NoSuchFieldException, IllegalAccessException {
         server = Server.getInstance();
 
-        player1 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
-        player2 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
-        player3 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
-        player4 = new ClientHandler(mock(Socket.class), mock(BufferedReader.class), mock(PrintWriter.class));
+        player1 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
+        player2 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
+        player3 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
+        player4 = new ClientHandler(mock(Socket.class), mock(ObjectInputStream.class), mock(ObjectOutputStream.class));
 
         Field instance = Server.class.getDeclaredField("gameTablesList");
         instance.setAccessible(true);

@@ -1,24 +1,25 @@
 package machalica.marcin.tictactoe.server.server;
 
+import machalica.marcin.tictactoe.communication.ChatMessage;
+import machalica.marcin.tictactoe.communication.ExitMessage;
+import machalica.marcin.tictactoe.communication.Message;
 import org.apache.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 import java.util.Objects;
 
 public class ClientHandler implements Runnable {
     private static final Logger logger = Logger.getLogger(ClientHandler.class);
     private final Socket socket;
-    private final BufferedReader in;
-    private final PrintWriter out;
+    private final ObjectInputStream in;
+    private final ObjectOutputStream out;
     private static final Server server = Server.getInstance();
     private String name;
     private int tableId = -1;
     private static int count;
 
-    public ClientHandler(Socket socket, BufferedReader in, PrintWriter out) {
+    public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
         this.socket = socket;
         this.in = in;
         this.out = out;
@@ -48,31 +49,28 @@ public class ClientHandler implements Runnable {
             } catch (Exception ex) {
                 logger.error(ex);
             }
-            logger.info("Connection closed");
+            logger.info("Connection closed with " + this.name);
         }
     }
 
     private void chat() throws IOException {
-        String msg;
-        out.println("SERVER:CLIENTNAME#" + this.name);
+        Message msg = null;
+        out.writeObject(new ChatMessage(this.name));
         out.flush();
 
-        do {
-            msg = in.readLine();
-            if (msg != null && msg.trim().equals("")) continue;
-            for (ClientHandler player : server.getPlayers(tableId)) {
-                if (msg == null || msg.equals("ENDCONNECTION")) {
-                    if (player != this) {
-                        player.out.println("Opponent has disconnected");
-                    } else {
-                        player.out.println("ENDCONNECTION");
-                    }
-                } else if (this.name != null) {
-                    player.out.println(this.name + ": " + msg.trim());
-                }
-                player.out.flush();
+        while (true) {
+            try {
+                msg = (Message) in.readObject();
+            } catch (ClassNotFoundException ex) {
+                logger.error(ex);
             }
-        } while (msg != null || !msg.equals("ENDCONNECTION"));
+
+            if (msg == null || (msg instanceof ExitMessage)) {
+                out.writeObject(msg);
+                out.flush();
+                break;
+            }
+        }
     }
 
     public String getName() {

@@ -6,15 +6,16 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import machalica.marcin.tictactoe.client.client.Client;
+import machalica.marcin.tictactoe.communication.ExitMessage;
 
 public class Main extends Application {
 
     @Override
-    public void start(Stage primaryStage) throws Exception{
+    public void start(Stage primaryStage) throws Exception {
         Parent root = FXMLLoader.load(getClass().getResource("/Login.fxml"));
         primaryStage.setTitle("Tic Tac Toe - client");
         primaryStage.setScene(new Scene(root, 600, 400));
-        primaryStage.setOnCloseRequest(e -> Client.getInstance().sendMessage("ENDCONNECTION"));
+        primaryStage.setOnCloseRequest(e -> Client.getInstance().sendMessage(new ExitMessage()));
         primaryStage.show();
     }
 

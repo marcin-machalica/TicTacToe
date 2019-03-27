@@ -1,12 +1,12 @@
 package machalica.marcin.tictactoe.client.client;
 
 import javafx.application.Platform;
+import machalica.marcin.tictactoe.communication.ChatMessage;
+import machalica.marcin.tictactoe.communication.ExitMessage;
+import machalica.marcin.tictactoe.communication.Message;
 import org.apache.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.Socket;
 
 public class Client implements Runnable {
@@ -15,8 +15,8 @@ public class Client implements Runnable {
     private final String IP_ADDRESS = "localhost";
     private final int PORT = 9999;
     private Socket socket;
-    private BufferedReader in;
-    private PrintWriter out;
+    private ObjectInputStream in;
+    private ObjectOutputStream out;
     private String name;
 
     private Client() { }
@@ -49,25 +49,26 @@ public class Client implements Runnable {
     }
 
     private void setupStreams() throws IOException {
-        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-        out = new PrintWriter(socket.getOutputStream());
+        out = new ObjectOutputStream(socket.getOutputStream());
         out.flush();
+        in = new ObjectInputStream(socket.getInputStream());
     }
 
     private void chat() throws IOException {
-        String msg;
-        do {
-            msg = in.readLine();
-            if(msg == null) {
-                logger.error("null");
+        Message msg = null;
+        while (true) {
+            try {
+                msg = (Message) in.readObject();
+            } catch (ClassNotFoundException ex) {
+                logger.error(ex);
+            }
+
+            if (msg == null || (msg instanceof ExitMessage)) {
                 break;
             }
-            if(this.name == null) {
-                assignName(msg);
-                continue;
-            }
-            logger.info(msg);
-        } while(!msg.equals("ENDCONNECTION"));
+
+            logger.info(((ChatMessage) msg).getMessage());
+        }
     }
 
     private void closeEverything() {
@@ -84,19 +85,19 @@ public class Client implements Runnable {
         }
     }
 
-    public void sendMessage(String msg) {
-        if(msg == null) return;
-        if(this.name != null || msg.equals("ENDCONNECTION")) {
-            out.println(msg);
-            out.flush();
+    public void sendMessage(Message msg) {
+        try {
+            if (msg != null) {
+                out.writeObject(msg);
+                out.flush();
+            }
+        } catch (IOException ex) {
+            logger.error(ex);
         }
     }
 
-    private void assignName(String msg) {
-        String[] nameMsg = msg.split("SERVER:CLIENTNAME#");
-        if(nameMsg.length == 2) {
-            this.name = nameMsg[1];
-        }
+    private void setName(String name) {
+        this.name = name;
     }
 
     public String getName() {

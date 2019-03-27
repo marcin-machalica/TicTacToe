@@ -3,10 +3,7 @@ package machalica.marcin.tictactoe.server.server;
 import machalica.marcin.tictactoe.server.game.GameTable;
 import org.apache.log4j.Logger;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -38,23 +35,22 @@ public class Server {
 
         while (true) {
             Socket socket = null;
-            BufferedReader in = null;
-            PrintWriter out = null;
+            ObjectInputStream in = null;
+            ObjectOutputStream out = null;
             ClientHandler clientHandler = null;
 
             try {
                 socket = serverSocket.accept();
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                out = new PrintWriter(socket.getOutputStream());
+                out = new ObjectOutputStream(socket.getOutputStream());
                 out.flush();
+                in = new ObjectInputStream(socket.getInputStream());
 
                 clientHandler = new ClientHandler(socket, in, out);
+                logger.info("Connection established with: " + clientHandler.getName());
                 assignPlayerToGameTable(clientHandler);
 
                 Thread thread = new Thread(clientHandler);
                 thread.start();
-
-                logger.info("Connection established with: " + clientHandler.getName());
             } catch (Exception ex) {
                 logger.error(ex);
                 try {
