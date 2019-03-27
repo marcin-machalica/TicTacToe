@@ -18,8 +18,7 @@ public class ClientHandler implements Runnable {
     private int tableId = -1;
     private static int count;
 
-    public ClientHandler(Socket socket, BufferedReader in, PrintWriter out)
-    {
+    public ClientHandler(Socket socket, BufferedReader in, PrintWriter out) {
         this.socket = socket;
         this.in = in;
         this.out = out;
@@ -35,21 +34,19 @@ public class ClientHandler implements Runnable {
     }
 
     @Override
-    public void run()
-    {
+    public void run() {
         try {
             chat();
         } catch (Exception ex) {
-            ex.printStackTrace();
+            logger.error(ex);
         } finally {
-            try
-            {
-                server.removePlayer(tableId,this);
-                if(in != null) in.close();
-                if(out != null) out.close();
-                if(socket != null) socket.close();
-            } catch(Exception ex){
-                ex.printStackTrace();
+            try {
+                server.removePlayer(tableId, this);
+                if (in != null) in.close();
+                if (out != null) out.close();
+                if (socket != null) socket.close();
+            } catch (Exception ex) {
+                logger.error(ex);
             }
             logger.info("Connection closed");
         }
@@ -57,19 +54,25 @@ public class ClientHandler implements Runnable {
 
     private void chat() throws IOException {
         String msg;
-        out.println(this.name + "#SERVER:CLIENTNAME");
+        out.println("SERVER:CLIENTNAME#" + this.name);
         out.flush();
 
         do {
             msg = in.readLine();
-            if(msg == null) break;
-            if(msg.equals("")) continue;
+            if (msg != null && msg.trim().equals("")) continue;
             for (ClientHandler player : server.getPlayers(tableId)) {
-                if(msg.equals("ENDCONNECTION")) player.out.println(this.name + " has disconnected");
-                else player.out.println(this.name + ": " + msg);
+                if (msg == null || msg.equals("ENDCONNECTION")) {
+                    if (player != this) {
+                        player.out.println("Opponent has disconnected");
+                    } else {
+                        player.out.println("ENDCONNECTION");
+                    }
+                } else if (this.name != null) {
+                    player.out.println(this.name + ": " + msg.trim());
+                }
                 player.out.flush();
             }
-        } while(!msg.equals("ENDCONNECTION"));
+        } while (msg != null || !msg.equals("ENDCONNECTION"));
     }
 
     public String getName() {

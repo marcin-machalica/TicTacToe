@@ -31,7 +31,7 @@ public class Server {
         try {
             serverSocket = new ServerSocket(PORT);
         } catch (IOException ex) {
-            ex.printStackTrace();
+            logger.error(ex);
             System.exit(0);
         }
         logger.info("Waiting for connections...");
@@ -56,7 +56,7 @@ public class Server {
 
                 logger.info("Connection established with: " + clientHandler.getName());
             } catch (Exception ex) {
-                ex.printStackTrace();
+                logger.error(ex);
                 try {
                     if(clientHandler != null && clientHandler.getTableId() != -1) {
                         removePlayer(clientHandler.getTableId() , clientHandler);
@@ -65,7 +65,7 @@ public class Server {
                     if(out != null) out.close();
                     if(socket != null) socket.close();
                 } catch (Exception ex2) {
-                    ex2.printStackTrace();
+                    logger.error(ex2);
                 }
                 logger.info("Connection closed");
             }
