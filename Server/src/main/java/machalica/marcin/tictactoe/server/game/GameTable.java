@@ -36,19 +36,27 @@ public class GameTable {
         return players;
     }
 
-    public void assignPlayer(ClientHandler player) {
+    public boolean assignPlayer(ClientHandler player) {
         if(players[0] == null) {
             players[0] = player;
+            return true;
         } else if(players[1] == null) {
             players[1] = player;
+            return true;
+        } else {
+            return false;
         }
     }
 
-    public void removePlayer(ClientHandler player) {
-        if(players[0].equals(player)) {
+    public boolean removePlayer(ClientHandler player) {
+        if(players[0] == player) {
             players[0] = null;
-        } else if(players[1].equals(player)) {
+            return true;
+        } else if(players[1] == player) {
             players[1] = null;
+            return true;
+        } else {
+            return false;
         }
     }
 

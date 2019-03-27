@@ -1,6 +1,7 @@
 package machalica.marcin.tictactoe.server.server;
 
 import machalica.marcin.tictactoe.server.game.GameTable;
+import org.apache.log4j.Logger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -13,24 +14,27 @@ import java.util.Collections;
 import java.util.List;
 
 public class Server {
+    private static final Server instance = new Server();
+    private static final Logger logger = Logger.getLogger(Server.class);
     private final int PORT = 9999;
     private ServerSocket serverSocket;
 
-    private static final List<GameTable> gameTablesList = Collections.synchronizedList(new ArrayList<>());
+    private List<GameTable> gameTablesList = Collections.synchronizedList(new ArrayList<>());
 
-    public static void main(String[] args) {
-        Server server = new Server();
-        server.runServer();
+    private Server() { }
+
+    public static Server getInstance() {
+        return instance;
     }
 
-    private void runServer() {
+    public void runServer() {
         try {
             serverSocket = new ServerSocket(PORT);
         } catch (IOException ex) {
             ex.printStackTrace();
             System.exit(0);
         }
-        System.out.println("Waiting for connections...");
+        logger.info("Waiting for connections...");
 
         while (true) {
             Socket socket = null;
@@ -45,12 +49,12 @@ public class Server {
                 out.flush();
 
                 clientHandler = new ClientHandler(socket, in, out);
-                int tableId = assignPlayerToGameTable(clientHandler);
-                clientHandler.setTableId(tableId);
+                assignPlayerToGameTable(clientHandler);
+
                 Thread thread = new Thread(clientHandler);
                 thread.start();
 
-                System.out.println("Connection established with: " + clientHandler.getName());
+                logger.info("Connection established with: " + clientHandler.getName());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 try {
@@ -63,36 +67,61 @@ public class Server {
                 } catch (Exception ex2) {
                     ex2.printStackTrace();
                 }
-                System.out.println("Connection closed");
+                logger.info("Connection closed");
             }
         }
     }
 
-    private int assignPlayerToGameTable(ClientHandler clientHandler) {
+    private boolean assignPlayerToGameTable(ClientHandler clientHandler) {
         int count = 0;
         boolean foundEmpty = false;
 
         for(GameTable gameTable : gameTablesList) {
-            count++;
             if(gameTable.isFree()) {
                 foundEmpty = true;
                 break;
             }
+            count++;
         }
         if(!foundEmpty) {
             gameTablesList.add(new GameTable(count));
         }
-        gameTablesList.get(count).assignPlayer(clientHandler);
-        System.out.printf("Assigned player %s to game table id: %d\n", clientHandler.getName(), gameTablesList.get(count).getId());
-        return count;
+        boolean wasSuccessful = gameTablesList.get(count).assignPlayer(clientHandler);
+        if(wasSuccessful) {
+            clientHandler.setTableId(count);
+            logger.info(String.format("Assigned player %s to game table id: %d", clientHandler.getName(), gameTablesList.get(count).getId()));
+        } else {
+            logger.error(String.format("Error while assigning player %s to game table id: %d", clientHandler.getName(), gameTablesList.get(count).getId()));
+        }
+        return wasSuccessful;
     }
 
-    public static void removePlayer(int gameTableId, ClientHandler clientHandler) {
-        gameTablesList.get(gameTableId).removePlayer(clientHandler);
-        System.out.printf("Removed player %s from game table id: %d\n", clientHandler.getName(), gameTableId);
+    public boolean removePlayer(int gameTableId, ClientHandler clientHandler) {
+        boolean wasSuccessful = false;
+
+        if(clientHandler == null) {
+            logger.error("Player cannot be null");
+        } else if(gameTableId != clientHandler.getTableId()) {
+            logger.error("Passed game table id and player's game table id don't match");
+        } else if(gameTableId < 0 || gameTableId > gameTablesList.size()) {
+            logger.error("Not existing game table id: " + gameTableId);
+        } else {
+            wasSuccessful = gameTablesList.get(gameTableId).removePlayer(clientHandler);
+            if(wasSuccessful) {
+                clientHandler.setTableId(-1);
+                logger.info(String.format("Removed player %s from game table id: %d", clientHandler.getName(), gameTableId));
+            } else {
+                logger.info(String.format("Player %s not found at game table id: %d", clientHandler.getName(), gameTableId));
+            }
+        }
+        return wasSuccessful;
     }
 
-    public static ClientHandler[] getPlayers(int gameTableId) {
+    public ClientHandler[] getPlayers(int gameTableId) {
+        if(gameTableId < 0 || gameTableId > gameTablesList.size()) {
+            logger.error("Not existing game table id: " + gameTableId);
+            return new ClientHandler[] {};
+        }
         return gameTablesList.get(gameTableId).getPlayers();
     }
 }

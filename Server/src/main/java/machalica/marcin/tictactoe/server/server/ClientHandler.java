@@ -1,5 +1,7 @@
 package machalica.marcin.tictactoe.server.server;
 
+import org.apache.log4j.Logger;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -7,9 +9,11 @@ import java.net.Socket;
 import java.util.Objects;
 
 public class ClientHandler implements Runnable {
+    private static final Logger logger = Logger.getLogger(ClientHandler.class);
     private final Socket socket;
     private final BufferedReader in;
     private final PrintWriter out;
+    private static final Server server = Server.getInstance();
     private String name;
     private int tableId = -1;
     private static int count;
@@ -40,14 +44,14 @@ public class ClientHandler implements Runnable {
         } finally {
             try
             {
-                Server.removePlayer(tableId,this);
+                server.removePlayer(tableId,this);
                 if(in != null) in.close();
                 if(out != null) out.close();
                 if(socket != null) socket.close();
             } catch(Exception ex){
                 ex.printStackTrace();
             }
-            System.out.println("Connection closed");
+            logger.info("Connection closed");
         }
     }
 
@@ -60,8 +64,7 @@ public class ClientHandler implements Runnable {
             msg = in.readLine();
             if(msg == null) break;
             if(msg.equals("")) continue;
-            for (ClientHandler player : Server.getPlayers(tableId))
-            {
+            for (ClientHandler player : server.getPlayers(tableId)) {
                 if(msg.equals("ENDCONNECTION")) player.out.println(this.name + " has disconnected");
                 else player.out.println(this.name + ": " + msg);
                 player.out.flush();
