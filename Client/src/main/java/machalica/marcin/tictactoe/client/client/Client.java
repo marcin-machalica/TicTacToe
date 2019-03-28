@@ -1,6 +1,8 @@
 package machalica.marcin.tictactoe.client.client;
 
 import javafx.application.Platform;
+import machalica.marcin.tictactoe.client.main.Main;
+import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
 import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
@@ -18,6 +20,7 @@ public class Client implements Runnable {
     private ObjectInputStream in;
     private ObjectOutputStream out;
     private String name;
+    private volatile boolean isAuthenticated;
 
     private Client() { }
 
@@ -33,7 +36,11 @@ public class Client implements Runnable {
     private void runClient() {
         try {
             connectToServer();
-            chat();
+            waitForAuthentication();
+            if (isAuthenticated) {
+                Main.setGameScene();
+                chat();
+            }
         } catch (Exception ex) {
             logger.error(ex);
         } finally {
@@ -54,8 +61,15 @@ public class Client implements Runnable {
         in = new ObjectInputStream(socket.getInputStream());
     }
 
+    private void waitForAuthentication() {
+        logger.info("Waiting for authentication");
+        while (!isAuthenticated);
+        logger.info("Authenticated");
+    }
+
     private void chat() throws IOException {
         Message msg = null;
+
         while (true) {
             try {
                 msg = (Message) in.readObject();
@@ -63,11 +77,11 @@ public class Client implements Runnable {
                 logger.error(ex);
             }
 
-            if (msg == null || (msg instanceof ExitMessage)) {
+            if (!(msg instanceof ChatMessage)) {
                 break;
+            } else {
+                logger.info(((ChatMessage) msg).getMessage());
             }
-
-            logger.info(((ChatMessage) msg).getMessage());
         }
     }
 
@@ -96,11 +110,53 @@ public class Client implements Runnable {
         }
     }
 
+    public boolean authenticate(String login, char[] password) {
+        logger.info("Authenticating");
+        AuthenticationMessage authMsg = new AuthenticationMessage(login, password);
+        sendMessage(authMsg);
+
+        for(int i = 0; i < password.length; i++) {
+            password[i] = '\0';
+        }
+
+        try {
+            Object obj = in.readObject();
+
+            if (!(obj instanceof Boolean)) {
+                closeEverything();
+                return false;
+            } else {
+                isAuthenticated = (Boolean) obj;
+
+                if (isAuthenticated) {
+                    setName(login);
+                }
+
+                return isAuthenticated;
+            }
+        } catch (IOException | ClassNotFoundException ex) {
+            logger.error(ex);
+            closeEverything();
+            return false;
+        }
+    }
+
+    public void requestClose() {
+        sendMessage(new ExitMessage());
+        if (!isAuthenticated) {
+            closeEverything();
+        }
+    }
+
     private void setName(String name) {
         this.name = name;
     }
 
     public String getName() {
         return this.name;
+    }
+
+    public boolean isAuthenticated() {
+        return isAuthenticated;
     }
 }

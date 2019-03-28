@@ -1,11 +1,13 @@
 package machalica.marcin.tictactoe.server.server;
 
+import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
-import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
 import org.apache.log4j.Logger;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Objects;
 
@@ -18,6 +20,7 @@ public class ClientHandler implements Runnable {
     private String name;
     private int tableId = -1;
     private static int count;
+    private volatile boolean isAuthenticated;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
         this.socket = socket;
@@ -37,25 +40,46 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            chat();
+            authenticate();
+            if (isAuthenticated) {
+                chat();
+            }
         } catch (Exception ex) {
             logger.error(ex);
         } finally {
+            closeEverything();
+        }
+    }
+
+    private void authenticate() throws IOException {
+        Message msg = null;
+        while (!isAuthenticated) {
             try {
-                server.removePlayer(tableId, this);
-                if (in != null) in.close();
-                if (out != null) out.close();
-                if (socket != null) socket.close();
-            } catch (Exception ex) {
+                msg = (Message) in.readObject();
+            } catch (ClassNotFoundException ex) {
                 logger.error(ex);
             }
-            logger.info("Connection closed with " + this.name);
+
+            if (!(msg instanceof AuthenticationMessage)) {
+                return;
+            } else {
+                AuthenticationMessage authMsg = (AuthenticationMessage) msg;
+                isAuthenticated = server.authenticate(authMsg);
+
+                if (isAuthenticated) {
+                    this.name = authMsg.getLogin();
+                    logger.info(this.name + " authenticated");
+                }
+
+                out.writeObject(isAuthenticated);
+                out.flush();
+            }
         }
     }
 
     private void chat() throws IOException {
         Message msg = null;
-        out.writeObject(new ChatMessage(this.name));
+        out.writeObject(new ChatMessage("Hello " + this.name));
         out.flush();
 
         while (true) {
@@ -65,12 +89,25 @@ public class ClientHandler implements Runnable {
                 logger.error(ex);
             }
 
-            if (msg == null || (msg instanceof ExitMessage)) {
+            if (!(msg instanceof ChatMessage)) {
+                break;
+            } else {
                 out.writeObject(msg);
                 out.flush();
-                break;
             }
         }
+    }
+
+    private void closeEverything() {
+        try {
+            server.removePlayer(tableId, this);
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (socket != null) socket.close();
+        } catch (Exception ex) {
+            logger.error(ex);
+        }
+        logger.info("Closed connection with " + this.name);
     }
 
     public String getName() {

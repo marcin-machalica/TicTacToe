@@ -1,5 +1,6 @@
 package machalica.marcin.tictactoe.server.server;
 
+import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.server.game.GameTable;
 import org.apache.log4j.Logger;
 
@@ -7,6 +8,7 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -111,6 +113,21 @@ public class Server {
             }
         }
         return wasSuccessful;
+    }
+
+    public boolean authenticate (AuthenticationMessage authMsg) {
+        char[] password = authMsg.getPassword();
+
+        if (authMsg.getLogin() != null && authMsg.getLogin().equals("qwe") &&
+                Arrays.equals(password, "123".toCharArray())) {
+            for(int i = 0; i < password.length; i++) {
+                password[i] = '\0';
+            }
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
     public ClientHandler[] getPlayers(int gameTableId) {
