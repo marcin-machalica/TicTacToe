@@ -13,20 +13,20 @@ import java.util.Objects;
 
 public class ClientHandler implements Runnable {
     private static final Logger logger = Logger.getLogger(ClientHandler.class);
+    private static final Server server = Server.getInstance();
     private final Socket socket;
     private final ObjectInputStream in;
     private final ObjectOutputStream out;
-    private static final Server server = Server.getInstance();
+    private final String address;
     private String name;
     private int tableId = -1;
-    private static int count;
     private volatile boolean isAuthenticated;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
         this.socket = socket;
         this.in = in;
         this.out = out;
-        this.name = "Client " + ++count;
+        this.address = socket.getRemoteSocketAddress().toString();
     }
 
     public int getTableId() {
@@ -41,7 +41,7 @@ public class ClientHandler implements Runnable {
     public void run() {
         try {
             authenticate();
-            if (isAuthenticated) {
+            if (isAuthenticated && server.assignPlayerToGameTable(this)) {
                 chat();
             }
         } catch (Exception ex) {
@@ -53,27 +53,25 @@ public class ClientHandler implements Runnable {
 
     private void authenticate() throws IOException {
         Message msg = null;
-        while (!isAuthenticated) {
-            try {
-                msg = (Message) in.readObject();
-            } catch (ClassNotFoundException ex) {
-                logger.error(ex);
+        try {
+            msg = (Message) in.readObject();
+        } catch (ClassNotFoundException ex) {
+            logger.error(ex);
+        }
+
+        if (!(msg instanceof AuthenticationMessage)) {
+            return;
+        } else {
+            AuthenticationMessage authMsg = (AuthenticationMessage) msg;
+            isAuthenticated = server.authenticate(authMsg);
+
+            if (isAuthenticated) {
+                this.name = authMsg.getLogin();
+                logger.info(getAddress() + " Authenticated as " + this.name);
             }
 
-            if (!(msg instanceof AuthenticationMessage)) {
-                return;
-            } else {
-                AuthenticationMessage authMsg = (AuthenticationMessage) msg;
-                isAuthenticated = server.authenticate(authMsg);
-
-                if (isAuthenticated) {
-                    this.name = authMsg.getLogin();
-                    logger.info(this.name + " authenticated");
-                }
-
-                out.writeObject(isAuthenticated);
-                out.flush();
-            }
+            out.writeObject(isAuthenticated);
+            out.flush();
         }
     }
 
@@ -107,11 +105,19 @@ public class ClientHandler implements Runnable {
         } catch (Exception ex) {
             logger.error(ex);
         }
-        logger.info("Closed connection with " + this.name);
+        logger.info("Closed connection with " + getAddress());
+    }
+
+    public boolean isAuthenticated() {
+        return isAuthenticated;
     }
 
     public String getName() {
         return name;
+    }
+
+    public String getAddress() {
+        return address;
     }
 
     @Override
@@ -132,7 +138,7 @@ public class ClientHandler implements Runnable {
     @Override
     public String toString() {
         return "ClientHandler{" +
-                "name='" + name + '\'' +
+                "address='" + socket.getRemoteSocketAddress().toString() + '\'' +
                 ", tableId=" + tableId +
                 '}';
     }

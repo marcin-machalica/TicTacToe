@@ -14,19 +14,18 @@ import java.net.Socket;
 public class Client implements Runnable {
     private static final Client instance = new Client();
     private static final Logger logger = Logger.getLogger(Client.class);
-    private final String IP_ADDRESS = "localhost";
-    private final int PORT = 9999;
+    private static final String IP_ADDRESS = "localhost";
+    private static final int PORT = 9999;
     private Socket socket;
     private ObjectInputStream in;
     private ObjectOutputStream out;
     private String name;
     private volatile boolean isAuthenticated;
+    private volatile boolean isRunning;
 
     private Client() { }
 
-    public static Client getInstance() {
-        return instance;
-    }
+    public static Client getInstance() { return instance; }
 
     @Override
     public void run() {
@@ -37,14 +36,16 @@ public class Client implements Runnable {
         try {
             connectToServer();
             waitForAuthentication();
-            if (isAuthenticated) {
+            if (isRunning && isAuthenticated) {
                 Main.setGameScene();
                 chat();
             }
+        } catch (EOFException ex) {
+          closeEverything(true);
         } catch (Exception ex) {
             logger.error(ex);
         } finally {
-            closeEverything();
+            closeEverything(false);
         }
     }
 
@@ -62,9 +63,12 @@ public class Client implements Runnable {
     }
 
     private void waitForAuthentication() {
+        isRunning = true;
         logger.info("Waiting for authentication");
-        while (!isAuthenticated);
-        logger.info("Authenticated");
+        while (!isAuthenticated && isRunning);
+        if (isRunning && isAuthenticated) {
+            logger.info("Authenticated");
+        }
     }
 
     private void chat() throws IOException {
@@ -78,14 +82,14 @@ public class Client implements Runnable {
             }
 
             if (!(msg instanceof ChatMessage)) {
-                break;
+                closeEverything(true);
             } else {
                 logger.info(((ChatMessage) msg).getMessage());
             }
         }
     }
 
-    private void closeEverything() {
+    private void closeEverything(boolean shouldExit) {
         try {
             if (in != null) in.close();
             if (out != null) out.close();
@@ -93,9 +97,12 @@ public class Client implements Runnable {
         } catch (IOException ex) {
             logger.error(ex);
         } finally {
+            isRunning = false;
             logger.info("Connection closed\n");
-            Platform.exit();
-            System.exit(0);
+            if (shouldExit) {
+                Platform.exit();
+                System.exit(0);
+            }
         }
     }
 
@@ -123,28 +130,34 @@ public class Client implements Runnable {
             Object obj = in.readObject();
 
             if (!(obj instanceof Boolean)) {
-                closeEverything();
+                logger.info("Authentication failed");
+                isRunning = false;
                 return false;
             } else {
                 isAuthenticated = (Boolean) obj;
 
                 if (isAuthenticated) {
                     setName(login);
+                    return isAuthenticated;
+                } else {
+                    logger.info("Authentication failed");
+                    isRunning = false;
+                    return false;
                 }
-
-                return isAuthenticated;
             }
         } catch (IOException | ClassNotFoundException ex) {
-            logger.error(ex);
-            closeEverything();
+            logger.error("Authentication failed - " + ex);
+            isRunning = false;
             return false;
         }
     }
 
     public void requestClose() {
-        sendMessage(new ExitMessage());
-        if (!isAuthenticated) {
-            closeEverything();
+        if (isAuthenticated) {
+            sendMessage(new ExitMessage());
+        }
+        else {
+            closeEverything(true);
         }
     }
 
@@ -158,5 +171,9 @@ public class Client implements Runnable {
 
     public boolean isAuthenticated() {
         return isAuthenticated;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
     }
 }
