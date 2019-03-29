@@ -1,29 +1,32 @@
 package machalica.marcin.tictactoe.server.server;
 
+import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
-import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
 import org.apache.log4j.Logger;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Objects;
 
 public class ClientHandler implements Runnable {
     private static final Logger logger = Logger.getLogger(ClientHandler.class);
+    private static final Server server = Server.getInstance();
     private final Socket socket;
     private final ObjectInputStream in;
     private final ObjectOutputStream out;
-    private static final Server server = Server.getInstance();
+    private final String address;
     private String name;
     private int tableId = -1;
-    private static int count;
+    private volatile boolean isAuthenticated;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
         this.socket = socket;
         this.in = in;
         this.out = out;
-        this.name = "Client " + ++count;
+        this.address = socket.getRemoteSocketAddress().toString();
     }
 
     public int getTableId() {
@@ -37,25 +40,44 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            chat();
+            authenticate();
+            if (isAuthenticated && server.assignPlayerToGameTable(this)) {
+                chat();
+            }
         } catch (Exception ex) {
             logger.error(ex);
         } finally {
-            try {
-                server.removePlayer(tableId, this);
-                if (in != null) in.close();
-                if (out != null) out.close();
-                if (socket != null) socket.close();
-            } catch (Exception ex) {
-                logger.error(ex);
+            closeEverything();
+        }
+    }
+
+    private void authenticate() throws IOException {
+        Message msg = null;
+        try {
+            msg = (Message) in.readObject();
+        } catch (ClassNotFoundException ex) {
+            logger.error(ex);
+        }
+
+        if (!(msg instanceof AuthenticationMessage)) {
+            return;
+        } else {
+            AuthenticationMessage authMsg = (AuthenticationMessage) msg;
+            isAuthenticated = server.authenticate(authMsg);
+
+            if (isAuthenticated) {
+                this.name = authMsg.getLogin();
+                logger.info(getAddress() + " Authenticated as " + this.name);
             }
-            logger.info("Connection closed with " + this.name);
+
+            out.writeObject(isAuthenticated);
+            out.flush();
         }
     }
 
     private void chat() throws IOException {
         Message msg = null;
-        out.writeObject(new ChatMessage(this.name));
+        out.writeObject(new ChatMessage("Hello " + this.name));
         out.flush();
 
         while (true) {
@@ -65,16 +87,37 @@ public class ClientHandler implements Runnable {
                 logger.error(ex);
             }
 
-            if (msg == null || (msg instanceof ExitMessage)) {
+            if (!(msg instanceof ChatMessage)) {
+                break;
+            } else {
                 out.writeObject(msg);
                 out.flush();
-                break;
             }
         }
     }
 
+    private void closeEverything() {
+        try {
+            server.removePlayer(tableId, this);
+            if (in != null) in.close();
+            if (out != null) out.close();
+            if (socket != null) socket.close();
+        } catch (Exception ex) {
+            logger.error(ex);
+        }
+        logger.info("Closed connection with " + getAddress());
+    }
+
+    public boolean isAuthenticated() {
+        return isAuthenticated;
+    }
+
     public String getName() {
         return name;
+    }
+
+    public String getAddress() {
+        return address;
     }
 
     @Override
@@ -95,7 +138,7 @@ public class ClientHandler implements Runnable {
     @Override
     public String toString() {
         return "ClientHandler{" +
-                "name='" + name + '\'' +
+                "address='" + socket.getRemoteSocketAddress().toString() + '\'' +
                 ", tableId=" + tableId +
                 '}';
     }
