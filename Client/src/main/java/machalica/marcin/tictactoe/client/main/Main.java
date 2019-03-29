@@ -23,10 +23,10 @@ public class Main extends Application {
         primaryStage.show();
     }
 
-    public static void setGameScene() {
+    public static void setLobbyScene() {
         if (client.isAuthenticated()) {
             try {
-                Parent root = FXMLLoader.load(Main.class.getResource("/Game.fxml"));
+                Parent root = FXMLLoader.load(Main.class.getResource("/Lobby.fxml"));
                 mainStage.getScene().setRoot(root);
             } catch (Exception ex) {
                 logger.error(ex);

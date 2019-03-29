@@ -3,6 +3,7 @@ package machalica.marcin.tictactoe.server.server;
 import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
 import machalica.marcin.tictactoe.communication.Message;
+import machalica.marcin.tictactoe.communication.game.AssignGameTableMessage;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -42,6 +43,8 @@ public class ClientHandler implements Runnable {
         try {
             authenticate();
             if (isAuthenticated && server.assignPlayerToGameTable(this)) {
+                out.writeObject(new AssignGameTableMessage(tableId));
+                out.flush();
                 chat();
             }
         } catch (Exception ex) {

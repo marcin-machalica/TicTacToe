@@ -6,6 +6,7 @@ import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
 import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
+import machalica.marcin.tictactoe.communication.game.AssignGameTableMessage;
 import org.apache.log4j.Logger;
 
 import java.io.*;
@@ -22,6 +23,7 @@ public class Client implements Runnable {
     private String name;
     private volatile boolean isAuthenticated;
     private volatile boolean isRunning;
+    private volatile int gameTableId = -1;
 
     private Client() { }
 
@@ -37,8 +39,11 @@ public class Client implements Runnable {
             connectToServer();
             waitForAuthentication();
             if (isRunning && isAuthenticated) {
-                Main.setGameScene();
-                chat();
+                assignGameTable();
+                if (isRunning && gameTableId >= 0) {
+                    Main.setLobbyScene();
+                    chat();
+                }
             }
         } catch (EOFException ex) {
           closeEverything(true);
@@ -68,6 +73,28 @@ public class Client implements Runnable {
         while (!isAuthenticated && isRunning);
         if (isRunning && isAuthenticated) {
             logger.info("Authenticated");
+        }
+    }
+
+    private void assignGameTable() {
+        logger.info("Assigning game table");
+//        AssignGameTableMessage tableMsg = new AssignGameTableMessage(gameTableId);
+//        sendMessage(tableMsg);
+
+        try {
+            Object obj = in.readObject();
+
+            if (!(obj instanceof AssignGameTableMessage)) {
+                logger.error("Assigning game table failed");
+                isRunning = false;
+                gameTableId = -1;
+            } else {
+                gameTableId = ((AssignGameTableMessage) obj).getGameTableId();
+            }
+        } catch (IOException | ClassNotFoundException ex) {
+            logger.error("Assigning game table failed");
+            gameTableId = -1;
+            isRunning = false;
         }
     }
 
@@ -175,5 +202,9 @@ public class Client implements Runnable {
 
     public boolean isRunning() {
         return isRunning;
+    }
+
+    public int getGameTableId() {
+        return gameTableId;
     }
 }
