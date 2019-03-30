@@ -18,7 +18,6 @@ public class LoginController {
 
     @FXML
     private void initialize() {
-
         signInButton.setOnAction(e -> {
             if (!client.isAuthenticated()) {
                 String login = loginField.getText();
@@ -27,6 +26,7 @@ public class LoginController {
                 passwordField.setText("");
 
                 new Thread(client).start();
+
                 while (!client.isRunning());
                 client.authenticate(login, password);
             }

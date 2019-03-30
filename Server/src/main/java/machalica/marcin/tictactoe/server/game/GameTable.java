@@ -3,10 +3,12 @@ package machalica.marcin.tictactoe.server.game;
 import machalica.marcin.tictactoe.server.server.ClientHandler;
 
 import java.util.Arrays;
+import java.util.Random;
 
 public class GameTable {
     private int id;
-    private ClientHandler[] players = new ClientHandler[2];
+    private volatile ClientHandler[] players = new ClientHandler[2];
+    private ClientHandler playerTurn;
 
     public GameTable(int id) {
         this.id = id;
@@ -58,6 +60,28 @@ public class GameTable {
         } else {
             return false;
         }
+    }
+
+    public void waitForGame() {
+        while (isFree());
+    }
+
+    public ClientHandler getOpponent (ClientHandler player) {
+        if (getPlayer1() == player) {
+            return getPlayer2();
+        } else if (getPlayer2() == player) {
+            return getPlayer1();
+        } else {
+            return null;
+        }
+    }
+
+    public synchronized ClientHandler getPlayerTurn() {
+        if (playerTurn == null) {
+            boolean isPlayer1 = new Random().nextBoolean();
+            playerTurn = isPlayer1 ? getPlayer1() : getPlayer2();
+        }
+        return playerTurn;
     }
 
     @Override

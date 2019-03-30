@@ -4,6 +4,8 @@ import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
 import machalica.marcin.tictactoe.communication.Message;
 import machalica.marcin.tictactoe.communication.game.AssignGameTableMessage;
+import machalica.marcin.tictactoe.communication.game.StartGameMessage;
+import machalica.marcin.tictactoe.server.game.GameTable;
 import org.apache.log4j.Logger;
 
 import java.io.IOException;
@@ -22,6 +24,7 @@ public class ClientHandler implements Runnable {
     private String name;
     private int tableId = -1;
     private volatile boolean isAuthenticated;
+    private GameTable gameTable;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
         this.socket = socket;
@@ -45,7 +48,20 @@ public class ClientHandler implements Runnable {
             if (isAuthenticated && server.assignPlayerToGameTable(this)) {
                 out.writeObject(new AssignGameTableMessage(tableId));
                 out.flush();
-                chat();
+
+                gameTable = server.getGameTable(this);
+                if (gameTable != null) {
+                    gameTable.waitForGame();
+                    if (!gameTable.isFree()) {
+                        ClientHandler player = this;
+                        ClientHandler opponent = gameTable.getOpponent(player);
+                        if (opponent != null) {
+                            boolean isPlayerTurn = gameTable.getPlayerTurn().equals(this);
+                            out.writeObject(new StartGameMessage(player.getName(), opponent.getName(), isPlayerTurn));
+                            chat();
+                        }
+                    }
+                }
             }
         } catch (Exception ex) {
             logger.error(ex);
@@ -101,6 +117,7 @@ public class ClientHandler implements Runnable {
 
     private void closeEverything() {
         try {
+            gameTable = null;
             server.removePlayer(tableId, this);
             if (in != null) in.close();
             if (out != null) out.close();

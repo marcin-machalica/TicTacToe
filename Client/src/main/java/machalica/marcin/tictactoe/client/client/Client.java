@@ -1,12 +1,14 @@
 package machalica.marcin.tictactoe.client.client;
 
 import javafx.application.Platform;
+import machalica.marcin.tictactoe.client.game.Game;
 import machalica.marcin.tictactoe.client.main.Main;
 import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
 import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
 import machalica.marcin.tictactoe.communication.game.AssignGameTableMessage;
+import machalica.marcin.tictactoe.communication.game.StartGameMessage;
 import org.apache.log4j.Logger;
 
 import java.io.*;
@@ -24,6 +26,7 @@ public class Client implements Runnable {
     private volatile boolean isAuthenticated;
     private volatile boolean isRunning;
     private volatile int gameTableId = -1;
+    private volatile Game game;
 
     private Client() { }
 
@@ -39,10 +42,16 @@ public class Client implements Runnable {
             connectToServer();
             waitForAuthentication();
             if (isRunning && isAuthenticated) {
+                game = null;
                 assignGameTable();
                 if (isRunning && gameTableId >= 0) {
                     Main.setLobbyScene();
-                    chat();
+                    waitForGame();
+                    if (isRunning && game != null) {
+                        Main.setGameScene();
+//                    startGame();
+                        chat();
+                    }
                 }
             }
         } catch (EOFException ex) {
@@ -52,6 +61,40 @@ public class Client implements Runnable {
         } finally {
             closeEverything(false);
         }
+    }
+
+    private void waitForGame() {
+        logger.info("Waiting for game at table " + gameTableId);
+        new Thread(() -> {
+            try {
+                Object obj = in.readObject();
+
+                if (!(obj instanceof StartGameMessage)) {
+                    logger.error("Starting game failed");
+                    gameTableId = -1;
+                    game = null;
+                    isRunning = false;
+                } else {
+                    StartGameMessage msg = (StartGameMessage) obj;
+                    if (msg.getPlayerName() == null || msg.getOpponentName() == null) {
+                        logger.error("Starting game failed");
+                        gameTableId = -1;
+                        game = null;
+                        isRunning = false;
+                    } else {
+                        game = new Game(msg.getPlayerName(), msg.getOpponentName(), msg.isPlayerTurn());
+                        logger.info("Game found");
+                    }
+                }
+            } catch (IOException | ClassNotFoundException ex) {
+                logger.error("Starting game failed");
+                gameTableId = -1;
+                game = null;
+                isRunning = false;
+            }
+        }).start();
+
+        while (isRunning && game == null);
     }
 
     private void connectToServer() throws IOException {
@@ -78,16 +121,14 @@ public class Client implements Runnable {
 
     private void assignGameTable() {
         logger.info("Assigning game table");
-//        AssignGameTableMessage tableMsg = new AssignGameTableMessage(gameTableId);
-//        sendMessage(tableMsg);
 
         try {
             Object obj = in.readObject();
 
             if (!(obj instanceof AssignGameTableMessage)) {
                 logger.error("Assigning game table failed");
-                isRunning = false;
                 gameTableId = -1;
+                isRunning = false;
             } else {
                 gameTableId = ((AssignGameTableMessage) obj).getGameTableId();
             }
@@ -118,6 +159,7 @@ public class Client implements Runnable {
 
     private void closeEverything(boolean shouldExit) {
         try {
+            game = null;
             if (in != null) in.close();
             if (out != null) out.close();
             if (socket != null) socket.close();
@@ -206,5 +248,9 @@ public class Client implements Runnable {
 
     public int getGameTableId() {
         return gameTableId;
+    }
+
+    public Game getGame() {
+        return game;
     }
 }

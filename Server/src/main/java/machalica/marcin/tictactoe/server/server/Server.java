@@ -12,7 +12,7 @@ import java.util.*;
 public class Server {
     private static final Server instance = new Server();
     private static final Logger logger = Logger.getLogger(Server.class);
-    private final int PORT = 9999;
+    private static final int PORT = 9999;
     private ServerSocket serverSocket;
 
     private List<GameTable> gameTablesList = Collections.synchronizedList(new ArrayList<>());
@@ -143,6 +143,14 @@ public class Server {
             return new ClientHandler[] {};
         }
         return gameTablesList.get(gameTableId).getPlayers();
+    }
+
+    public GameTable getGameTable(ClientHandler clientHandler) {
+        if(clientHandler.getTableId() < 0 || clientHandler.getTableId() > gameTablesList.size()) {
+            logger.error("Not existing game table id: " + clientHandler.getTableId());
+            return null;
+        }
+        return gameTablesList.get(clientHandler.getTableId());
     }
 
     private void populateUsers() {

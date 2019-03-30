@@ -35,6 +35,18 @@ public class Main extends Application {
         }
     }
 
+    public static void setGameScene() {
+        if (client.getGame() != null) {
+            try {
+                Parent root = FXMLLoader.load(Main.class.getResource("/Game.fxml"));
+                mainStage.getScene().setRoot(root);
+            } catch (Exception ex) {
+                logger.error(ex);
+                client.requestClose();
+            }
+        }
+    }
+
     public static void main(String[] args) {
         launch(args);
     }
