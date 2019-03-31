@@ -87,7 +87,7 @@ public class Client implements Runnable {
                     }
                 }
             } catch (IOException | ClassNotFoundException ex) {
-                logger.error("Starting game failed");
+                logger.error("Starting game failed - " + ex);
                 gameTableId = -1;
                 game = null;
                 isRunning = false;

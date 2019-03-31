@@ -9,6 +9,8 @@ public class GameTable {
     private int id;
     private volatile ClientHandler[] players = new ClientHandler[2];
     private ClientHandler playerTurn;
+    private Boolean isPlayer1Turn;
+    private Boolean isPlayer2Turn;
 
     public GameTable(int id) {
         this.id = id;
@@ -41,9 +43,13 @@ public class GameTable {
     public boolean assignPlayer(ClientHandler player) {
         if(players[0] == null) {
             players[0] = player;
+            isPlayer1Turn = isPlayer2Turn == null ? new Random().nextBoolean() : !isPlayer2Turn;
+
             return true;
         } else if(players[1] == null) {
             players[1] = player;
+            isPlayer2Turn = isPlayer1Turn == null ? new Random().nextBoolean() : !isPlayer1Turn;
+
             return true;
         } else {
             return false;
@@ -53,17 +59,15 @@ public class GameTable {
     public boolean removePlayer(ClientHandler player) {
         if(players[0] == player) {
             players[0] = null;
+            isPlayer1Turn = null;
             return true;
         } else if(players[1] == player) {
             players[1] = null;
+            isPlayer2Turn = null;
             return true;
         } else {
             return false;
         }
-    }
-
-    public void waitForGame() {
-        while (isFree());
     }
 
     public ClientHandler getOpponent (ClientHandler player) {
@@ -76,12 +80,14 @@ public class GameTable {
         }
     }
 
-    public synchronized ClientHandler getPlayerTurn() {
-        if (playerTurn == null) {
-            boolean isPlayer1 = new Random().nextBoolean();
-            playerTurn = isPlayer1 ? getPlayer1() : getPlayer2();
+    public Boolean isItMyTurn(ClientHandler player) {
+        if(players[0] == player) {
+            return isPlayer1Turn;
+        } else if(players[1] == player) {
+            return isPlayer2Turn;
+        } else {
+            return null;
         }
-        return playerTurn;
     }
 
     @Override

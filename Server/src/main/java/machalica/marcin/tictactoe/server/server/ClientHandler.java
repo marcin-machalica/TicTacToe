@@ -2,6 +2,7 @@ package machalica.marcin.tictactoe.server.server;
 
 import machalica.marcin.tictactoe.communication.AuthenticationMessage;
 import machalica.marcin.tictactoe.communication.ChatMessage;
+import machalica.marcin.tictactoe.communication.ExitMessage;
 import machalica.marcin.tictactoe.communication.Message;
 import machalica.marcin.tictactoe.communication.game.AssignGameTableMessage;
 import machalica.marcin.tictactoe.communication.game.StartGameMessage;
@@ -24,6 +25,8 @@ public class ClientHandler implements Runnable {
     private String name;
     private int tableId = -1;
     private volatile boolean isAuthenticated;
+    private volatile boolean isRunning;
+    private volatile boolean isInGame;
     private GameTable gameTable;
 
     public ClientHandler(Socket socket, ObjectInputStream in, ObjectOutputStream out) {
@@ -41,25 +44,50 @@ public class ClientHandler implements Runnable {
         this.tableId = tableId;
     }
 
+    private void handleInput() {
+        try {
+            while (isRunning) {
+                Object msg = in.readObject();
+
+                if (msg instanceof AuthenticationMessage && !isAuthenticated) {
+                    authenticate((AuthenticationMessage) msg);
+                } else {
+                    isRunning = false;
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            logger.error(ex);
+            isRunning = false;
+        }
+    }
+
     @Override
     public void run() {
+        isRunning = true;
         try {
-            authenticate();
+            new Thread(() -> handleInput()).start();
+            while (isRunning && !isAuthenticated);
             if (isAuthenticated && server.assignPlayerToGameTable(this)) {
                 out.writeObject(new AssignGameTableMessage(tableId));
                 out.flush();
 
                 gameTable = server.getGameTable(this);
                 if (gameTable != null) {
-                    gameTable.waitForGame();
-                    if (!gameTable.isFree()) {
+                    while (isRunning && gameTable.isFree());
+
+                    if (isRunning && !gameTable.isFree()) {
                         ClientHandler player = this;
                         ClientHandler opponent = gameTable.getOpponent(player);
                         if (opponent != null) {
-                            boolean isPlayerTurn = gameTable.getPlayerTurn().equals(this);
-                            out.writeObject(new StartGameMessage(player.getName(), opponent.getName(), isPlayerTurn));
-                            chat();
+                            out.writeObject(new StartGameMessage(player.getName(), opponent.getName(), gameTable.isItMyTurn(this)));
+
+                            isInGame = true;
                         }
+                    }
+
+                    if (isRunning && isInGame) {
+                        chat();
                     }
                 }
             }
@@ -70,28 +98,17 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    private void authenticate() throws IOException {
-        Message msg = null;
-        try {
-            msg = (Message) in.readObject();
-        } catch (ClassNotFoundException ex) {
-            logger.error(ex);
+    private void authenticate(AuthenticationMessage authMsg) throws IOException {
+        isAuthenticated = server.authenticate(authMsg);
+        isRunning = true;
+
+        if (isAuthenticated) {
+            this.name = authMsg.getLogin();
+            logger.info(getAddress() + " Authenticated as " + this.name);
         }
 
-        if (!(msg instanceof AuthenticationMessage)) {
-            return;
-        } else {
-            AuthenticationMessage authMsg = (AuthenticationMessage) msg;
-            isAuthenticated = server.authenticate(authMsg);
-
-            if (isAuthenticated) {
-                this.name = authMsg.getLogin();
-                logger.info(getAddress() + " Authenticated as " + this.name);
-            }
-
-            out.writeObject(isAuthenticated);
-            out.flush();
-        }
+        out.writeObject(isAuthenticated);
+        out.flush();
     }
 
     private void chat() throws IOException {
